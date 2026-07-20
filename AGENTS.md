@@ -54,8 +54,8 @@ Do not replace the stack without explicit user approval.
 
 1. Use Supabase Auth for the production web app.
 2. Keep authentication flows minimal and calm.
-3. Magic-link email authentication is the default unless another method is
-   explicitly requested.
+3. Email/password authentication is the current product flow. Registration
+   requires email and full name, with an optional phone number.
 4. Do not render or query private notes before authentication is established.
 5. Sign-out must clear user-specific UI state from memory.
 
@@ -131,4 +131,3 @@ Before handing off a meaningful change:
 - `supabase/schema.sql`: database schema and Row Level Security policies
 - `.env.example`: required public Supabase environment variables
 - `README.md`: local setup and Supabase connection instructions
-

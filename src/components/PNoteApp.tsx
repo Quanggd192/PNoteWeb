@@ -38,7 +38,14 @@ export function PNoteApp() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authMessage, setAuthMessage] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
   const [workspaces, setWorkspaces] = useState<WorkspaceConfig[]>(defaultWorkspaces);
   const [workspaceId, setWorkspaceId] = useState("reflect");
   const [view, setView] = useState<NoteType>("journal");
@@ -215,10 +222,40 @@ export function PNoteApp() {
     else localStorage.setItem(demoNotesKey, JSON.stringify(notes.filter((note) => note.id !== selected.id)));
   };
 
-  const signIn = async () => {
-    if (!supabase || !email.trim()) return;
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
-    setAuthMessage(error ? error.message : "Check your email for the secure sign-in link.");
+  const submitAuth = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!supabase || authLoading) return;
+    setAuthError("");
+    setAuthMessage("");
+    if (authMode === "register" && password !== confirmPassword) {
+      setAuthError("Passwords do not match.");
+      return;
+    }
+
+    setAuthLoading(true);
+    const normalizedEmail = email.trim().toLowerCase();
+    if (authMode === "login") {
+      const { error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
+      if (error) setAuthError(error.message);
+    } else {
+      const normalizedPhone = phone.trim();
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: { data: { display_name: fullName.trim(), ...(normalizedPhone ? { phone: normalizedPhone } : {}) } }
+      });
+      if (error) setAuthError(error.message);
+      else if (!data.session) setAuthMessage("Account created. Check your email to confirm your account, then sign in.");
+    }
+    setAuthLoading(false);
+  };
+
+  const changeAuthMode = (mode: "login" | "register") => {
+    setAuthMode(mode);
+    setAuthError("");
+    setAuthMessage("");
+    setPassword("");
+    setConfirmPassword("");
   };
 
   const editProfile = async () => {
@@ -316,7 +353,7 @@ export function PNoteApp() {
   };
 
   if (!authReady) return <div className="center-screen"><div className="logo">P</div><p>Opening your private space…</p></div>;
-  if (supabase && !user) return <main className="auth-page"><section className="auth-hero"><div className="logo">P</div><p className="eyebrow">Private Thinking Space</p><h1>A quiet place for the thoughts that matter.</h1><p>Journal, reflect, study, and sharpen ideas without the noise of a productivity dashboard.</p></section><section className="auth-card"><p className="eyebrow">Welcome to PNote</p><h2>Sign in with email</h2><p>We will send a private magic link. No password needed.</p><input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email"/><button className="primary" onClick={() => void signIn()}>Send magic link</button>{authMessage && <p className="auth-message">{authMessage}</p>}</section></main>;
+  if (supabase && !user) return <main className="auth-page"><section className="auth-hero"><div className="logo">P</div><p className="eyebrow">Private Thinking Space</p><h1>A quiet place for the thoughts that matter.</h1><p>Journal, reflect, study, and sharpen ideas without the noise of a productivity dashboard.</p></section><section className="auth-card"><p className="eyebrow">Welcome to PNote</p><div className="auth-tabs" role="tablist" aria-label="Authentication mode"><button type="button" role="tab" aria-selected={authMode === "login"} className={authMode === "login" ? "active" : ""} onClick={() => changeAuthMode("login")}>Sign in</button><button type="button" role="tab" aria-selected={authMode === "register"} className={authMode === "register" ? "active" : ""} onClick={() => changeAuthMode("register")}>Create account</button></div><div><h2>{authMode === "login" ? "Welcome back" : "Create your account"}</h2><p>{authMode === "login" ? "Sign in with your email and password." : "Your private writing space is a moment away."}</p></div><form className="auth-form" onSubmit={(event) => void submitAuth(event)}>{authMode === "register" && <><label>Full name<input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" autoComplete="name" required/></label><label>Phone <span>(optional)</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Your phone number" type="tel" autoComplete="tel"/></label></>}<label>Email<input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" type="email" autoComplete="email" required/></label><label>Password<input value={password} onChange={(e) => setPassword(e.target.value)} placeholder="At least 6 characters" type="password" minLength={6} autoComplete={authMode === "login" ? "current-password" : "new-password"} required/></label>{authMode === "register" && <label>Confirm password<input value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Enter your password again" type="password" minLength={6} autoComplete="new-password" required/></label>}<button className="primary" type="submit" disabled={authLoading}>{authLoading ? "Please wait..." : authMode === "login" ? "Sign in" : "Create account"}</button></form>{authError && <p className="auth-message error" role="alert">{authError}</p>}{authMessage && <p className="auth-message success" role="status">{authMessage}</p>}</section></main>;
 
   return <div className={`app ${sidebarOpen ? "" : "sidebar-closed"}`}>
     <aside className="sidebar">
