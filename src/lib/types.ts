@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   email: string | null;
   display_name: string;
+  phone: string | null;
   avatar_url: string | null;
   role: "user" | "admin";
   status: "active" | "suspended";

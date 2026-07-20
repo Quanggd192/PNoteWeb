@@ -52,8 +52,10 @@ used only in memory to decrypt the local vault. The command then replaces
 `supabase/migrate_desktop_data.sql` with an idempotent query containing the
 desktop notes. Run that generated SQL in Supabase SQL Editor.
 
-Supabase Auth stores password verifiers as one-way hashes. Do not add passwords
-to migration SQL or application tables.
+Supabase Auth stores password verifiers as one-way hashes. Never add a password
+column to `public.profiles` or another application table. Administrative
+password resets must be performed through Supabase Auth, never through a public
+application table or browser code.
 
 ## Validate
 
