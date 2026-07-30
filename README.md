@@ -28,6 +28,7 @@ The SQL schema enables row-level security. Every read and write is restricted to
 - `workspaces`: a user owns many workspaces.
 - `menus`: a user owns many menus, and each menu belongs to one workspace.
 - `notes`: a user owns many notes; each note can reference one workspace and one menu.
+- `daily_habit_checks`: checkbox progress for each user, daily commitment, and calendar date.
 
 Deleting a menu or workspace keeps its notes. The corresponding relationship on
 the note is set to `null`. Deleting an Auth user cascades through their profile,

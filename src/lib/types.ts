@@ -29,6 +29,25 @@ export interface Note {
   updated_at: string;
 }
 
+export type DailyHabitKey =
+  | "wake_before_6"
+  | "sleep_before_11"
+  | "screen_time_under_3h"
+  | "language_30m"
+  | "tech_30m"
+  | "personal_business_1h"
+  | "gym_session";
+
+export interface DailyHabitCheck {
+  id: string;
+  user_id: string;
+  task_key: DailyHabitKey;
+  check_date: string;
+  completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkspaceConfig {
   id: string;
   user_id?: string;

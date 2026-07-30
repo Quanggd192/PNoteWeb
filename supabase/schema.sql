@@ -18,6 +18,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   display_name text not null default '',
+  phone text,
   avatar_url text,
   role text not null default 'user' check (role in ('user', 'admin')),
   status text not null default 'active' check (status in ('active', 'suspended')),
@@ -68,6 +69,25 @@ create table if not exists public.notes (
   archived boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
+);
+
+create table if not exists public.daily_habit_checks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  task_key text not null check (task_key in (
+    'wake_before_6',
+    'sleep_before_11',
+    'screen_time_under_3h',
+    'language_30m',
+    'tech_30m',
+    'personal_business_1h',
+    'gym_session'
+  )),
+  check_date date not null,
+  completed boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (user_id, task_key, check_date)
 );
 
 
@@ -121,6 +141,7 @@ create index if not exists notes_user_updated_idx on public.notes(user_id, updat
 create index if not exists notes_user_type_idx on public.notes(user_id, type);
 create index if not exists notes_workspace_idx on public.notes(workspace_id);
 create index if not exists notes_menu_idx on public.notes(menu_id);
+create index if not exists daily_habit_checks_user_date_idx on public.daily_habit_checks(user_id, check_date);
 
 drop trigger if exists profiles_set_updated_at on public.profiles;
 create trigger profiles_set_updated_at before update on public.profiles
@@ -134,6 +155,9 @@ for each row execute function public.set_updated_at();
 drop trigger if exists notes_set_updated_at on public.notes;
 create trigger notes_set_updated_at before update on public.notes
 for each row execute function public.set_updated_at();
+drop trigger if exists daily_habit_checks_set_updated_at on public.daily_habit_checks;
+create trigger daily_habit_checks_set_updated_at before update on public.daily_habit_checks
+for each row execute function public.set_updated_at();
 
 create or replace function public.handle_new_user()
 returns trigger
@@ -142,11 +166,12 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
+  insert into public.profiles (id, email, display_name, phone)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'display_name', new.raw_user_meta_data ->> 'full_name', '')
+    coalesce(new.raw_user_meta_data ->> 'display_name', new.raw_user_meta_data ->> 'full_name', ''),
+    nullif(new.raw_user_meta_data ->> 'phone', '')
   )
   on conflict (id) do update set email = excluded.email;
   return new;
@@ -158,8 +183,8 @@ create trigger on_auth_user_created
 after insert or update of email on auth.users
 for each row execute function public.handle_new_user();
 
-insert into public.profiles (id, email, display_name)
-select id, email, coalesce(raw_user_meta_data ->> 'display_name', raw_user_meta_data ->> 'full_name', '')
+insert into public.profiles (id, email, display_name, phone)
+select id, email, coalesce(raw_user_meta_data ->> 'display_name', raw_user_meta_data ->> 'full_name', ''), nullif(raw_user_meta_data ->> 'phone', '')
 from auth.users
 on conflict (id) do update set email = excluded.email;
 
@@ -167,6 +192,7 @@ alter table public.profiles enable row level security;
 alter table public.workspaces enable row level security;
 alter table public.menus enable row level security;
 alter table public.notes enable row level security;
+alter table public.daily_habit_checks enable row level security;
 
 drop policy if exists "Users can read their own profile" on public.profiles;
 create policy "Users can read their own profile" on public.profiles for select using (auth.uid() = id);
@@ -200,12 +226,22 @@ create policy "Users can update their own notes" on public.notes for update usin
 drop policy if exists "Users can delete their own notes" on public.notes;
 create policy "Users can delete their own notes" on public.notes for delete using (auth.uid() = user_id);
 
+drop policy if exists "Users can read their own daily habit checks" on public.daily_habit_checks;
+create policy "Users can read their own daily habit checks" on public.daily_habit_checks for select using (auth.uid() = user_id);
+drop policy if exists "Users can create their own daily habit checks" on public.daily_habit_checks;
+create policy "Users can create their own daily habit checks" on public.daily_habit_checks for insert with check (auth.uid() = user_id);
+drop policy if exists "Users can update their own daily habit checks" on public.daily_habit_checks;
+create policy "Users can update their own daily habit checks" on public.daily_habit_checks for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+drop policy if exists "Users can delete their own daily habit checks" on public.daily_habit_checks;
+create policy "Users can delete their own daily habit checks" on public.daily_habit_checks for delete using (auth.uid() = user_id);
+
 grant usage on schema public to authenticated;
 grant select on public.profiles to authenticated;
-grant update (display_name, avatar_url, preferences) on public.profiles to authenticated;
+grant update (display_name, phone, avatar_url, preferences) on public.profiles to authenticated;
 grant select, insert, update, delete on public.workspaces to authenticated;
 grant select, insert, update, delete on public.menus to authenticated;
 grant select, insert, update, delete on public.notes to authenticated;
+grant select, insert, update, delete on public.daily_habit_checks to authenticated;
 
 create or replace function public.delete_workspace_keep_notes(target_workspace_id uuid)
 returns void
