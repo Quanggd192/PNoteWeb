@@ -18,6 +18,7 @@ create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text,
   display_name text not null default '',
+  phone text,
   avatar_url text,
   role text not null default 'user' check (role in ('user', 'admin')),
   status text not null default 'active' check (status in ('active', 'suspended')),
@@ -165,11 +166,12 @@ security definer
 set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
+  insert into public.profiles (id, email, display_name, phone)
   values (
     new.id,
     new.email,
-    coalesce(new.raw_user_meta_data ->> 'display_name', new.raw_user_meta_data ->> 'full_name', '')
+    coalesce(new.raw_user_meta_data ->> 'display_name', new.raw_user_meta_data ->> 'full_name', ''),
+    nullif(new.raw_user_meta_data ->> 'phone', '')
   )
   on conflict (id) do update set email = excluded.email;
   return new;
@@ -181,8 +183,8 @@ create trigger on_auth_user_created
 after insert or update of email on auth.users
 for each row execute function public.handle_new_user();
 
-insert into public.profiles (id, email, display_name)
-select id, email, coalesce(raw_user_meta_data ->> 'display_name', raw_user_meta_data ->> 'full_name', '')
+insert into public.profiles (id, email, display_name, phone)
+select id, email, coalesce(raw_user_meta_data ->> 'display_name', raw_user_meta_data ->> 'full_name', ''), nullif(raw_user_meta_data ->> 'phone', '')
 from auth.users
 on conflict (id) do update set email = excluded.email;
 
@@ -235,7 +237,7 @@ create policy "Users can delete their own daily habit checks" on public.daily_ha
 
 grant usage on schema public to authenticated;
 grant select on public.profiles to authenticated;
-grant update (display_name, avatar_url, preferences) on public.profiles to authenticated;
+grant update (display_name, phone, avatar_url, preferences) on public.profiles to authenticated;
 grant select, insert, update, delete on public.workspaces to authenticated;
 grant select, insert, update, delete on public.menus to authenticated;
 grant select, insert, update, delete on public.notes to authenticated;
